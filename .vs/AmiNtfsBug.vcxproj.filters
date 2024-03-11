@@ -20,7 +20,7 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\src\base-console.c">
+    <ClCompile Include="..\src\AmiNtfsBug.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

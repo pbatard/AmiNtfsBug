@@ -3,7 +3,7 @@ name: VS2022
 on: [push, pull_request]
 
 env:
-  FRIENDLY_NAME: Base Console
+  FRIENDLY_NAME: AMI NTFS Bug
   CONFIGURATION: Release
 
 jobs:

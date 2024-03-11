@@ -1,5 +1,5 @@
 /*
- * base-console - Because sometimes I want to release a win32 console
+ * AmiNtfsBug - Because sometimes I want to release a win32 console
  * utility in a hurry, and I like to have it set up properly.
  *
  * Copyright © 2020-2024 Pete Batard <pete@akeo.ie>
@@ -55,7 +55,7 @@ int main_utf8(int argc, char** argv)
 	fprintf(stderr, "This program is free software; you can redistribute it and/or modify it under \n");
 	fprintf(stderr, "the terms of the GNU General Public License as published by the Free Software \n");
 	fprintf(stderr, "Foundation; either version 3 of the License or any later version.\n\n");
-	fprintf(stderr, "Official project and latest downloads at: https://github.com/pbatard/base-console\n\n");
+	fprintf(stderr, "Official project and latest downloads at: https://github.com/pbatard/AmiNtfsBug\n\n");
 
 	fprintf(stdout, "Hello world!\n");
 
