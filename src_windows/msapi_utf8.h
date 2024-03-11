@@ -89,6 +89,9 @@ static __inline char* wchar_to_utf8(const wchar_t* wstr)
 	int size = 0;
 	char* str = NULL;
 
+	if (wstr == NULL)
+		return NULL;
+
 	// Convert the empty string too
 	if (wstr[0] == 0)
 		return (char*)calloc(1, 1);
@@ -1144,6 +1147,19 @@ static __inline const char* _filenameU(const char* path)
 		if ((path[i] == '/') || (path[i] == '\\'))
 			return &path[i + 1];
 	return path;
+}
+
+static __inline char* _getcwdU(char* buffer, int maxlen)
+{
+	if (buffer == NULL)
+		return wchar_to_utf8(_wgetcwd(NULL, maxlen));
+	walloc(buffer, maxlen);
+	wchar_t* wret = _wgetcwd(wbuffer, maxlen);
+	if (wret == NULL)
+		return NULL;
+	wchar_to_utf8_no_alloc(wbuffer, buffer, maxlen);
+	wfree(buffer);
+	return buffer;
 }
 
 // returned UTF-8 string must be freed

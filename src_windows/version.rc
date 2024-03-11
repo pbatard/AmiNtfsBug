@@ -48,10 +48,10 @@ BEGIN
             VALUE "CompanyName",        "Akeo Consulting"
             VALUE "FileDescription",    "Base Console"
             VALUE "FileVersion",        APP_FILE_VERSION_STR
-            VALUE "InternalName",       "base-console.exe"
-            VALUE "LegalCopyright",     "Copyright © 2020-2024 Pete Batard <pete@akeo.ie>"
-            VALUE "OriginalFilename",   "base-console.exe"
-            VALUE "ProductName",        "Base Console"
+            VALUE "InternalName",       "AmiNtfsBug.exe"
+            VALUE "LegalCopyright",     "Copyright © 2024 Pete Batard <pete@akeo.ie>"
+            VALUE "OriginalFilename",   "AmiNtfsBug.exe"
+            VALUE "ProductName",        "AMI UEFI NTFS driver bug test application"
             VALUE "ProductVersion",     APP_FILE_VERSION_STR
         END
     END

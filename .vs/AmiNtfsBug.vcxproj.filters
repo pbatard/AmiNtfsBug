@@ -15,17 +15,17 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\src\msapi_utf8.h">
+    <ClInclude Include="..\src_windows\msapi_utf8.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\src\AmiNtfsBug.c">
+    <ClCompile Include="..\src_windows\AmiNtfsBug.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="..\src\version.rc">
+    <ResourceCompile Include="..\src_windows\version.rc">
       <Filter>Resources</Filter>
     </ResourceCompile>
   </ItemGroup>
