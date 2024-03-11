@@ -1,0 +1,88 @@
+name: VS2022
+
+on: [push, pull_request]
+
+env:
+  FRIENDLY_NAME: Base Console
+  CONFIGURATION: Release
+
+jobs:
+  VS2022-Build:
+    runs-on: windows-latest
+
+    strategy:
+      matrix:
+        TARGET_PLATFORM: [x64, x86, arm64]
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Add MSBuild to PATH
+      uses: microsoft/setup-msbuild@v2
+      with:
+        msbuild-architecture: x64
+
+    - name: Set version
+      shell: bash
+      id: set_version
+      run: |
+        git_tag=$(git describe --tags --abbrev=0 || echo v0.0)
+        echo "version=$git_tag" >> $GITHUB_OUTPUT
+
+    - name: Build
+      shell: pwsh
+      run: |
+        # Build the GitHub Actions log URL for the current build
+        $BUILD_URL="$Env:GITHUB_SERVER_URL/$Env:GITHUB_REPOSITORY/actions/runs/$Env:GITHUB_RUN_ID"
+        # Build a version field for VERSION_INFO, by:
+        # - Removing anything that's not a digit or a dot, and replacing dots by commas ("v2.3" -> "2,3")
+        $FILE_VERSION="${{ steps.set_version.outputs.version }}" -replace '[^0-9.]' -replace '\.',','
+        # - Appending ",0" so that we end up with 4 sequences ("2,3" -> "2,3,0,0")
+        while (($FILE_VERSION.ToCharArray() -eq ',').count -lt 3) { $FILE_VERSION = $FILE_VERSION + ",0" }
+        # - Replacing commas with "%2c" since /p chokes on them even if the value is quoted ("2,3,0,0" -> "2%2c3%2c0%2c0")
+        $FILE_VERSION=$FILE_VERSION -replace ',','%2c'
+        # We'll use the VERSION_INFO 'Comments' field to insert some JSON data pertaining to this specific build
+        # Note that we use JSON5 here, on account that RC.exe removes ALL doubles quotes from VERSION_INFO fields
+        $JSON=@"
+        {
+          "Title": "Build Descriptor",
+          "Version": 1.0,
+          "Build": {
+            "Facility": "GitHub Actions",
+            "Url": "$BUILD_URL",
+            "Repo": {
+              "Branch": "$Env:GITHUB_REF_NAME",
+              "Commit": "$Env:GITHUB_SHA",
+              "License": "GPLv3+",
+              "Name": "$Env:GITHUB_REPOSITORY",
+              "Provider": "$Env:GITHUB_SERVER_URL",
+              "Scm": "git"
+            }
+          }
+        }
+        "@
+        $JSON=$JSON -replace '\n','' -replace '\s+',' ' -replace ',','%2c' -replace '"',"'"
+        msbuild ${{ github.event.repository.name }}.sln /m /p:Configuration=${{ env.CONFIGURATION }} /p:Platform=,Platform=${{ matrix.TARGET_PLATFORM }} /p:AppVersion=${{ steps.set_version.outputs.version }} /p:AppFileVersion="$FILE_VERSION" /p:AppComments="$JSON"
+
+    - name: Display SHA-256
+      run: sha256sum ./${{ matrix.TARGET_PLATFORM }}/${{ env.CONFIGURATION }}/*.exe
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      if: ${{ github.event_name == 'push' }}
+      with:
+        name: ${{ matrix.TARGET_PLATFORM }}
+        path: ./${{ matrix.TARGET_PLATFORM }}/${{ env.CONFIGURATION }}/*.exe
+
+    - name: Create release archive
+      if: startsWith(github.ref, 'refs/tags/')
+      run: 7z a ${{ github.event.repository.name }}_${{ matrix.TARGET_PLATFORM }}.zip ./${{ matrix.TARGET_PLATFORM }}/${{ env.CONFIGURATION }}/*.exe README.md LICENSE.txt
+
+    - name: Upload release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        body: ${{ env.FRIENDLY_NAME}} ${{ steps.set_version.outputs.version }}
+        files: ./*.zip
