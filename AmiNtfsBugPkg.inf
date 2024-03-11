@@ -1,0 +1,55 @@
+## @file
+#  Component Description File for AMI NTFS Driver Bug test application.
+#
+#  Copyright (c) 2024, Pete Batard <pete@akeo.ie>
+#
+#  SPDX-License-Identifier: GPL-3.0-or-later
+#
+##
+
+[Defines]
+  INF_VERSION                = 0x00010005
+  BASE_NAME                  = AmiNtfsBug
+  FILE_GUID                  = 30A63A94-E2A4-48A1-81EE-14FC5D01B58B
+  MODULE_TYPE                = UEFI_APPLICATION
+  VERSION_STRING             = 1.0
+  ENTRY_POINT                = Main
+
+[Sources]
+  src_uefi/AmiNtfsBug.c
+
+[Packages]
+  AmiNtfsBugPkg.dec
+  MdePkg/MdePkg.dec
+  ShellPkg/ShellPkg.dec
+
+[LibraryClasses]
+  BaseMemoryLib
+  BaseLib
+  DebugLib
+  FileHandleLib
+  HiiLib
+  MemoryAllocationLib
+  PcdLib
+  SortLib
+  UefiApplicationEntryPoint
+  UefiBootServicesTableLib
+  UefiHiiServicesLib
+  UefiLib
+  UefiRuntimeServicesTableLib
+  UefiShellLib
+
+[Guids]
+  gEfiFileInfoGuid
+  gEfiFileSystemInfoGuid
+
+[Protocols]
+  gEfiLoadedImageProtocolGuid
+  gEfiSimpleFileSystemProtocolGuid
+
+[Pcd]
+  gEfiMdePkgTokenSpaceGuid.PcdUefiVariableDefaultLang
+  gEfiMdePkgTokenSpaceGuid.PcdUefiVariableDefaultPlatformLang
+
+[BuildOptions]
+  RELEASE_*_*_CC_FLAGS    = -O2 -DMDEPKG_NDEBUG -DNDEBUG

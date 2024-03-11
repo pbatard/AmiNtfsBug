@@ -1,0 +1,13 @@
+## @file
+#  AMI NTFS Driver Bug Package
+#
+#  Copyright (c) 2024, Pete Batard <pete@akeo.ie>
+#
+##
+
+[Defines]
+  DEC_SPECIFICATION              = 0x00010005
+  PACKAGE_NAME                   = AmiNtfsBugPkg
+  PACKAGE_UNI_FILE               = AmiNtfsBugPkg.uni
+  PACKAGE_GUID                   = C5CCC5D9-C226-41D5-A691-FAADD7784CCF
+  PACKAGE_VERSION                = 1.0
