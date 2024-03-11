@@ -151,6 +151,8 @@ int main_utf8(int argc, char** argv)
 	fclose(list);
 
 	// Copy the prerequisite files
+	strcpy_s(&dst[3], sizeof(dst) - 3, "efi\\boot");
+	create_dirs(dst);
 	size_t src_len = strlen(src);
 	for (int i = 1; i < ARRAYSIZE(required_file); i++) {
 		strcpy_s(&src[src_len], sizeof(src) - src_len, required_file[i]);
