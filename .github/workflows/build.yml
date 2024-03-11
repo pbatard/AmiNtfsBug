@@ -1,25 +1,59 @@
-name: VS2022
+name: Build
 
-on:
-  # Depends on EDK2 workflow
-  workflow_run:
-    workflows: [EDK2]
-    types:
-      - completed
+on: [push, pull_request]
 
 env:
   FRIENDLY_NAME: AMI NTFS Bug
-  CONFIGURATION: Release
+  EDK2_BUILD_TYPE: RELEASE
+  MSVC_BUILD_TYPE: Release
+  EDK2_COMPILER: GCC5
+  TARGET_TYPE: x64
+  TARGET_ARCH: X64
 
 jobs:
-  VS2022-Build:
-    # Only run if the EDK2 build workflow succeeded
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    runs-on: windows-latest
+  # EDK2 UEFI app build job
+  EDK2-Build:
+    runs-on: ubuntu-latest
 
-    strategy:
-      matrix:
-        TARGET_PLATFORM: [x64, x86]
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Linux environment
+      run: |
+        sudo apt-get update
+        sudo apt-get -y --no-install-recommends install python3-distutils nasm uuid-dev gcc-multilib
+
+    - name: Set up EDK2
+      run: |
+        git clone --recursive https://github.com/tianocore/edk2.git
+        make -C edk2/BaseTools
+
+    - name: Build UEFI application
+      run: |
+        export WORKSPACE=$PWD
+        export PACKAGES_PATH=$WORKSPACE:$WORKSPACE/edk2
+        source edk2/edksetup.sh
+        build -a ${{ env.TARGET_ARCH }} -b ${{ env.EDK2_BUILD_TYPE }} -t ${{ env.EDK2_COMPILER }} -p AmiNtfsBugPkg.dsc
+        mv Build/${{ env.EDK2_BUILD_TYPE }}_${{ env.EDK2_COMPILER }}/${{ env.TARGET_ARCH }}/AmiNtfsBug.efi .
+
+    - name: Display SHA-256
+      run: sha256sum *.efi
+
+    - name: Upload EDK2 artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: uefi_${{ env.TARGET_TYPE }}
+        path: ./*.efi
+
+  # MSVC Windows app build job
+  VS2022-Build:
+    needs: EDK2-Build
+    runs-on: windows-latest
+    permissions:
+      contents: write
 
     steps:
     - name: Checkout repository
@@ -70,28 +104,26 @@ jobs:
         }
         "@
         $JSON=$JSON -replace '\n','' -replace '\s+',' ' -replace ',','%2c' -replace '"',"'"
-        msbuild ${{ github.event.repository.name }}.sln /m /p:Configuration=${{ env.CONFIGURATION }} /p:Platform=,Platform=${{ matrix.TARGET_PLATFORM }} /p:AppVersion=${{ steps.set_version.outputs.version }} /p:AppFileVersion="$FILE_VERSION" /p:AppComments="$JSON"
+        msbuild ${{ github.event.repository.name }}.sln /m /p:Configuration=${{ env.MSVC_BUILD_TYPE }} /p:Platform=,Platform=${{ env.TARGET_TYPE }} /p:AppVersion=${{ steps.set_version.outputs.version }} /p:AppFileVersion="$FILE_VERSION" /p:AppComments="$JSON"
 
     - name: Display SHA-256
-      run: sha256sum ./${{ matrix.TARGET_PLATFORM }}/${{ env.CONFIGURATION }}/*.exe
+      run: sha256sum ./${{ env.TARGET_TYPE }}/${{ env.MSVC_BUILD_TYPE }}/*.exe
 
     - name: Download EDK2 artifacts
       uses: actions/download-artifact@v4
       with:
-        run-id: ${{ github.event.workflow_run.id }}
-        name: x64
-        github-token: ${{ secrets.GITHUB_TOKEN }}
+        name: uefi_${{ env.TARGET_TYPE }}
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       if: ${{ github.event_name == 'push' }}
       with:
-        name: ${{ matrix.TARGET_PLATFORM }}
-        path: ./${{ matrix.TARGET_PLATFORM }}/${{ env.CONFIGURATION }}/*.exe
+        name: windows_${{ env.TARGET_TYPE }}
+        path: ./${{ env.TARGET_TYPE }}/${{ env.MSVC_BUILD_TYPE }}/*.exe
 
     - name: Create release archive
       if: startsWith(github.ref, 'refs/tags/')
-      run: 7z a ${{ github.event.repository.name }}_${{ matrix.TARGET_PLATFORM }}.zip ./${{ matrix.TARGET_PLATFORM }}/${{ env.CONFIGURATION }}/*.exe AmiNtfsBugPkg.efi list.txt runme.nsh README.md LICENSE.txt
+      run: 7z a ${{ github.event.repository.name }}_${{ env.TARGET_TYPE }}.zip ./${{ env.TARGET_TYPE }}/${{ env.MSVC_BUILD_TYPE }}/*.exe *.efi list.txt runme.nsh README.md LICENSE.txt
 
     - name: Upload release
       uses: softprops/action-gh-release@v1
