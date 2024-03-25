@@ -10,6 +10,8 @@ The AMI UEFI NTFS driver (version `0x10000`), commonly used in UEFI firmware pro
 Gigabyte, intel and so on, is buggy, and this repository aims at providing the relevant application and test
 files to highlight this bug.
 
+Note that this bug has been reported to AMI, who are in the process of investigating it.
+
 ## Discovery of the bug
 
 This bug was discovered when extracting UEFI bootable ISO images onto NTFS media, and then trying to validate
@@ -114,8 +116,8 @@ environment, we must consider the possibility of exploitation of this bug as a m
 
 In the absolute, this bug could potentially be used to deduplicate existing data from a file at an incorrect
 location which could mean running some improper code. However, since this would have to be existing Secure Boot
-signed code (rather than arbitrary code) code residing at very specific boundaries, and since this should only
-happen if the file is read in small chunks whereas UEFI API calls such as `LoadImage()` are expected to always
-read a file in one go, exploitation of this bug in term of code execution looks very difficult.
+signed code (rather than arbitrary code) residing at very specific boundaries, and since this should only happen
+if the file is read in small chunks whereas UEFI API calls such as `LoadImage()` are expected to always read a
+file in one go, exploitation of this bug in term of code execution looks very difficult.
 
 We therefore assert that the threat assessment of this bug, for Secure Boot, is very low.
