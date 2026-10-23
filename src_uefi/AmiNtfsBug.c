@@ -6,7 +6,7 @@
  * small reads on a file, the driver "resets" to reading the beginning of
  * the file, instead of continuing where it left of.
  *
- * Copyright © 2024 Pete Batard <pete@akeo.ie>
+ * Copyright © 2024-2026 Pete Batard <pete@akeo.ie>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -38,19 +38,20 @@
 
 #include <Protocol/LoadedImage.h>
 #include <Protocol/EfiShellInterface.h>
+#include <Protocol/Shell.h>
 #include <Protocol/ShellParameters.h>
 
 #include <Guid/FileInfo.h>
 #include <Guid/FileSystemInfo.h>
 
-#define BUFFER_SIZE 0x1000
+#define BUFFER_SIZE 0x2000
 
 STATIC EFI_STATUS TestFsDriver(
 	IN CONST EFI_FILE_HANDLE RootHandle,
 	IN CHAR16* Path
 )
 {
-	UINTN Size;
+	UINTN i, Size;
 	UINT8 Buffer[2][BUFFER_SIZE * 2];
 	EFI_STATUS Status;
 	EFI_FILE_HANDLE File = NULL;
@@ -89,8 +90,10 @@ STATIC EFI_STATUS TestFsDriver(
 	// 1. Read the first buffer in one go
 	Size = BUFFER_SIZE * 2;
 	Status = File->Read(File, &Size, Buffer[0]);
-	if (EFI_ERROR(Status))
+	if (EFI_ERROR(Status) || Size != BUFFER_SIZE * 2) {
+		Print(L"Read error for %s: %r\n", Path, Status);
 		goto out;
+	}
 
 	// 2. Reset the position to the start of the file
 	File->SetPosition(File, 0ULL);
@@ -98,21 +101,32 @@ STATIC EFI_STATUS TestFsDriver(
 	// 3. Read the second buffer in 2 parts
 	Size = BUFFER_SIZE;
 	Status = File->Read(File, &Size, Buffer[1]);
-	if (EFI_ERROR(Status))
+	if (EFI_ERROR(Status) || Size != BUFFER_SIZE) {
+		Print(L"Read error for %s: %r\n", Path, Status);
 		goto out;
+	}
 	Size = BUFFER_SIZE;
 	Status = File->Read(File, &Size, &Buffer[1][BUFFER_SIZE]);
-	if (EFI_ERROR(Status))
+	if (EFI_ERROR(Status) || Size != BUFFER_SIZE) {
+		Print(L"Read error for %s: %r\n", Path, Status);
 		goto out;
+	}
 
 	// 4. Compare the 2 buffers, which should be identical.
 	//    If they aren't, then the file system driver has a bug!
 	if (CompareMem(Buffer[0], Buffer[1], BUFFER_SIZE * 2) != 0) {
 		Print(L"FS DRIVER BUG! %s\n", Path);
 		Status = EFI_COMPROMISED_DATA;
+		Print(L"o ONE-SHOT READ:\n");
+		for (i = 0x0000; i <= 0x3000; i+= 0x1000)
+			Print(L"  0x%04X: %02X%02X%02X%02X...\n", i, Buffer[0][i], Buffer[0][i + 1], Buffer[0][i + 2], Buffer[0][i + 3]);
+		Print(L"o TWO-PART READ:\n");
+		for (i = 0x0000; i <= 0x3000; i+= 0x1000)
+			Print(L"  0x%04X: %02X%02X%02X%02X...\n", i, Buffer[1][i], Buffer[1][i + 1], Buffer[1][i + 2], Buffer[1][i + 3]);
 	}
 
 out:
+	FreePool(Info);
 	if (File != NULL)
 		File->Close(File);
 	return Status;
@@ -157,6 +171,44 @@ STATIC EFI_STATUS GetShellArgs(
 }
 
 /*
+ * Get the root EFI_FILE_HANDLE from a path (e.g., L"FS0:", L"FS1:\file.txt").
+ */
+EFI_STATUS
+GetRootHandleFromPath(
+	IN CHAR16* Path,
+	OUT EFI_FILE_HANDLE *RootHandle
+)
+{
+	EFI_STATUS Status;
+	EFI_SHELL_PROTOCOL* ShellProtocol;
+	EFI_DEVICE_PATH_PROTOCOL* DevicePath;
+	EFI_HANDLE DeviceHandle;
+	EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* FileSystem;
+
+	if (Path == NULL || RootHandle == NULL)
+		return EFI_INVALID_PARAMETER;
+
+	Status = gBS->LocateProtocol(&gEfiShellProtocolGuid, NULL, (VOID **)&ShellProtocol);
+	if (EFI_ERROR(Status))
+		return Status;
+
+	DevicePath = ShellProtocol->GetDevicePathFromFilePath(Path);
+	if (DevicePath == NULL)
+		return EFI_NOT_FOUND;
+
+	Status = gBS->LocateDevicePath(&gEfiSimpleFileSystemProtocolGuid, &DevicePath, &DeviceHandle);
+	if (EFI_ERROR(Status))
+		return Status;
+
+	Status = gBS->HandleProtocol(DeviceHandle, &gEfiSimpleFileSystemProtocolGuid, (VOID **)&FileSystem);
+	if (EFI_ERROR(Status))
+		return Status;
+
+	Status = FileSystem->OpenVolume (FileSystem, RootHandle);
+	return Status;
+}
+
+/*
  * Application entry-point
  */
 EFI_STATUS EFIAPI Main(
@@ -168,8 +220,6 @@ EFI_STATUS EFIAPI Main(
 	CHAR16** Argv = NULL;
 	EFI_STATUS Status;
 	EFI_FILE_HANDLE RootHandle;
-	EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* Volume;
-	EFI_LOADED_IMAGE_PROTOCOL* LoadedImage;
 
 	// Get the path passed as parameter
 	Status = GetShellArgs(BaseImageHandle, &Argc, &Argv);
@@ -183,21 +233,11 @@ EFI_STATUS EFIAPI Main(
 		goto out;
 	}
 
-	// Access the loaded image to open the current volume
-	Status = gBS->OpenProtocol(BaseImageHandle, &gEfiLoadedImageProtocolGuid,
-		(VOID**)&LoadedImage, BaseImageHandle, NULL, EFI_OPEN_PROTOCOL_GET_PROTOCOL);
-	if (EFI_ERROR(Status))
+	Status = GetRootHandleFromPath(Argv[1], &RootHandle);
+	if (EFI_ERROR(Status)) {
+		Print(L"Could not get root handle for '%s': %r\n", Argv[1], Status);
 		goto out;
-
-	// Open the the root directory on the current volume
-	Status = gBS->OpenProtocol(LoadedImage->DeviceHandle,
-		&gEfiSimpleFileSystemProtocolGuid, (VOID**)&Volume,
-		BaseImageHandle, NULL, EFI_OPEN_PROTOCOL_GET_PROTOCOL);
-	if (EFI_ERROR(Status))
-		goto out;
-	Status = Volume->OpenVolume(Volume, &RootHandle);
-	if (EFI_ERROR(Status))
-		goto out;
+	}
 
 	// Run the test on the file provided as parameter
 	Status = TestFsDriver(RootHandle, Argv[1]);
